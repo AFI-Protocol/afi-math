@@ -1,0 +1,40 @@
+{
+  "name": "@afi-protocol/afi-math",
+  "version": "0.1.0",
+  "description": "Shared financial math primitives for AFI Protocol (time value, curves, valuation, decay)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "afi",
+    "math",
+    "finance",
+    "valuation",
+    "time-value",
+    "dcf",
+    "decay"
+  ],
+  "author": "AFI Protocol",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/afi-protocol/afi-math"
+  }
+}
+

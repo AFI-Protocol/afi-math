@@ -1,0 +1,83 @@
+{
+  "name": "afi-math",
+  "role": "math-library",
+  "description": "Shared financial math primitives for AFI Protocol (time value, curves, valuation, decay).",
+  "entrypoints": [
+    "src/index.ts",
+    "src/timeValue/timeValue.ts",
+    "src/curves/curves.ts",
+    "src/valuation/reverseDcf.ts",
+    "src/decay/decayModels.ts"
+  ],
+  "provides": [
+    "time-value-functions",
+    "curve-primitives",
+    "reverse-dcf",
+    "signal-decay-models",
+    "terminal-value-calculations",
+    "implied-rate-solving",
+    "greeks-adjusted-decay"
+  ],
+  "consumers": [
+    "afi-engine",
+    "afi-token-finalized",
+    "afi-config",
+    "afi-plugins",
+    "afi-reactor",
+    "afi-core"
+  ],
+  "version": "0.1.0",
+  "status": "phase-1-ready",
+  "dependencies": {
+    "external": [],
+    "internal": []
+  },
+  "exports": {
+    "timeValue": {
+      "functions": [
+        "tvMultiple",
+        "presentValue",
+        "futureValue",
+        "impliedRate",
+        "presentValueContinuous",
+        "futureValueContinuous"
+      ]
+    },
+    "curves": {
+      "functions": [
+        "logistic",
+        "logisticNormalized",
+        "inverseLogistic",
+        "exponential",
+        "powerLaw",
+        "tanhNormalized",
+        "linearInterpolation",
+        "smoothstep"
+      ]
+    },
+    "valuation": {
+      "functions": [
+        "reverseDCF",
+        "impliedDiscountRate"
+      ],
+      "types": [
+        "ReverseDCFInputs",
+        "ReverseDCFOutputs"
+      ]
+    },
+    "decay": {
+      "functions": [
+        "exponentialDecay",
+        "powerDecay",
+        "halfLifeFromLambda",
+        "lambdaFromHalfLife",
+        "remainingAfterHalfLives",
+        "adjustedHalfLife",
+        "timeWeightedScore",
+        "compositeDecayScore",
+        "greeksAdjustedHalfLife"
+      ]
+    }
+  }
+}
+
