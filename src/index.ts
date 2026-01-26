@@ -18,10 +18,16 @@ export * as timeValue from "./timeValue/timeValue";
 export * as curves from "./curves/curves";
 export * as valuation from "./valuation/reverseDcf";
 export * as decay from "./decay/decayModels";
+export * as emissions from "./emissions/emissionsSchedule";
 
 // Also export types for convenience
 export type {
   ReverseDCFInputs,
   ReverseDCFOutputs
 } from "./valuation/reverseDcf";
+
+export type {
+  EmissionsParams,
+  EmissionsSchedule
+} from "./emissions/emissionsSchedule";
 
