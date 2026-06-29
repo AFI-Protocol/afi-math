@@ -1,6 +1,6 @@
 {
   "name": "@afi-protocol/afi-math",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared financial math primitives for AFI Protocol (time value, curves, valuation, decay)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
