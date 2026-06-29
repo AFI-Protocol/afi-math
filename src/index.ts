@@ -14,20 +14,20 @@
  */
 
 // Re-export all modules
-export * as timeValue from "./timeValue/timeValue";
-export * as curves from "./curves/curves";
-export * as valuation from "./valuation/reverseDcf";
-export * as decay from "./decay/decayModels";
-export * as emissions from "./emissions/emissionsSchedule";
+export * as timeValue from "./timeValue/timeValue.js";
+export * as curves from "./curves/curves.js";
+export * as valuation from "./valuation/reverseDcf.js";
+export * as decay from "./decay/decayModels.js";
+export * as emissions from "./emissions/emissionsSchedule.js";
 
 // Also export types for convenience
 export type {
   ReverseDCFInputs,
   ReverseDCFOutputs
-} from "./valuation/reverseDcf";
+} from "./valuation/reverseDcf.js";
 
 export type {
   EmissionsParams,
   EmissionsSchedule
-} from "./emissions/emissionsSchedule";
+} from "./emissions/emissionsSchedule.js";
 
