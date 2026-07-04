@@ -297,5 +297,82 @@ describe('Valuation Functions', () => {
       expect(rate).not.toBeNull();
     });
   });
+
+  // --- Hardening invariants (deterministic parameter grids) ---
+  // Grid-based rather than randomized so the suite stays fully deterministic
+  // with zero new dependencies. Adopting fast-check property tests is a
+  // recorded follow-up.
+  describe('invariants (deterministic grids)', () => {
+    const baseInputs: ReverseDCFInputs = {
+      EV: 1000,
+      S0: 500,
+      margin: 0.15,
+      taxRate: 0.25,
+      salesToCapital: 0.5,
+      WACC: 0.10,
+      gStable: 0.03,
+      horizonYears: 10,
+      trialSalesCAGR: 0.08
+    };
+
+    it('reverseDCF should be strictly increasing in trial CAGR over the moderate-growth range', () => {
+      // Note: monotonicity in CAGR is NOT global — at high growth the
+      // reinvestment drag ((ΔSales) * salesToCapital) outpaces NOPAT growth
+      // and implied EV can fall (e.g. CAGR 0.20 < CAGR 0.12 here). That is
+      // economically intended model behavior, so we only assert monotonicity
+      // over the moderate range where it holds.
+      let prev = 0;
+      for (const cagr of [-0.05, 0, 0.05, 0.08, 0.12]) {
+        const ev = reverseDCF({ ...baseInputs, trialSalesCAGR: cagr }).impliedEV;
+        expect(ev).toBeGreaterThan(prev);
+        prev = ev;
+      }
+    });
+
+    it('reverseDCF should be strictly decreasing in WACC', () => {
+      let prev = Number.POSITIVE_INFINITY;
+      for (const wacc of [0.07, 0.09, 0.11, 0.14, 0.20]) {
+        const ev = reverseDCF({ ...baseInputs, WACC: wacc }).impliedEV;
+        expect(ev).toBeLessThan(prev);
+        prev = ev;
+      }
+    });
+
+    it('reverseDCF output components should satisfy impliedEV = pvFcfSum + pvTerminalValue', () => {
+      for (const cagr of [-0.05, 0, 0.08, 0.15]) {
+        const out = reverseDCF({ ...baseInputs, trialSalesCAGR: cagr });
+        const recomposed = out.pvFcfSum + out.pvTerminalValue;
+        expect(Math.abs(out.impliedEV - recomposed) / Math.abs(out.impliedEV)).toBeLessThanOrEqual(1e-12);
+      }
+    });
+
+    it('impliedDiscountRate should recover known rates across a grid', () => {
+      const cashFlows = [100, 110, 121, 133.1, 146.41];
+      for (const knownRate of [0.02, 0.05, 0.10, 0.20, 0.40]) {
+        const targetPrice = cashFlows.reduce(
+          (sum, cf, t) => sum + cf / Math.pow(1 + knownRate, t + 1),
+          0
+        );
+        const solved = impliedDiscountRate({ cashFlows, targetPrice });
+        expect(solved).not.toBeNull();
+        expect(Math.abs(solved! - knownRate)).toBeLessThanOrEqual(1e-6);
+      }
+    });
+
+    it('should be deterministic: repeated calls return bit-identical results', () => {
+      const a = reverseDCF(baseInputs);
+      const b = reverseDCF(baseInputs);
+      expect(Object.is(a.pvFcfSum, b.pvFcfSum)).toBe(true);
+      expect(Object.is(a.fcfTerminalYear, b.fcfTerminalYear)).toBe(true);
+      expect(Object.is(a.terminalValue, b.terminalValue)).toBe(true);
+      expect(Object.is(a.pvTerminalValue, b.pvTerminalValue)).toBe(true);
+      expect(Object.is(a.impliedEV, b.impliedEV)).toBe(true);
+
+      const r1 = impliedDiscountRate({ cashFlows: [100, 100, 100], targetPrice: 248.69 });
+      const r2 = impliedDiscountRate({ cashFlows: [100, 100, 100], targetPrice: 248.69 });
+      expect(r1).not.toBeNull();
+      expect(Object.is(r1, r2)).toBe(true);
+    });
+  });
 });
 

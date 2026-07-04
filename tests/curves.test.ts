@@ -204,5 +204,72 @@ describe('Curve Primitives', () => {
       expect(val).toBe(0.5);
     });
   });
+
+  // --- Hardening invariants (deterministic parameter grids) ---
+  // Grid-based rather than randomized so the suite stays fully deterministic
+  // with zero new dependencies. Adopting fast-check property tests is a
+  // recorded follow-up.
+  describe('invariants (deterministic grids)', () => {
+    it('logistic and inverseLogistic should round-trip across the input grid', () => {
+      const L = 100;
+      const k = 0.12;
+      const t0 = 30;
+      for (let t = -20; t <= 80; t += 5) {
+        const y = logistic(t, L, k, t0);
+        const back = inverseLogistic(y, L, k, t0);
+        expect(back).not.toBeNull();
+        expect(Math.abs(back! - t)).toBeLessThanOrEqual(1e-9);
+      }
+    });
+
+    it('smoothstep should be monotonically non-decreasing across [edge0, edge1]', () => {
+      let prev = -1;
+      for (let t = 0; t <= 10.0001; t += 0.25) {
+        const v = smoothstep(t, 0, 10);
+        expect(v).toBeGreaterThanOrEqual(prev);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+        prev = v;
+      }
+    });
+
+    it('tanhNormalized should be strictly increasing for positive k', () => {
+      let prev = -1;
+      for (let t = -50; t <= 110; t += 10) {
+        const v = tanhNormalized(t, 0.12, 30);
+        expect(v).toBeGreaterThan(prev);
+        prev = v;
+      }
+    });
+
+    it('linearInterpolation should hit both endpoints exactly', () => {
+      expect(linearInterpolation(0, 0, 10, -5, 45)).toBe(-5);
+      expect(linearInterpolation(10, 0, 10, -5, 45)).toBe(45);
+      expect(linearInterpolation(3, 3, 8, 12, 99)).toBe(12);
+      expect(linearInterpolation(8, 3, 8, 12, 99)).toBe(99);
+    });
+
+    it('powerLaw should handle t=0 and p=0 edges consistently with Math.pow', () => {
+      expect(powerLaw(0, 5, 2)).toBe(0);   // 5 * 0^2 = 0
+      expect(powerLaw(3, 5, 0)).toBe(5);   // 5 * 3^0 = 5
+      expect(powerLaw(0, 5, 0)).toBe(5);   // 5 * 0^0 = 5 (Math.pow(0, 0) === 1)
+      expect(powerLaw(-2, 5, 3)).toBe(-40); // integer powers of negative t allowed
+    });
+
+    it('exponential growth and decay should be multiplicative inverses at the same |rate|', () => {
+      for (const r of [0.01, 0.1, 0.5]) {
+        for (const t of [0.5, 1, 5, 20]) {
+          const product = exponential(t, 1, r) * exponential(t, 1, -r);
+          expect(Math.abs(product - 1)).toBeLessThanOrEqual(1e-12);
+        }
+      }
+    });
+
+    it('should be deterministic: repeated calls return bit-identical results', () => {
+      expect(Object.is(logistic(17.3, 100, 0.12, 30), logistic(17.3, 100, 0.12, 30))).toBe(true);
+      expect(Object.is(smoothstep(3.7, 0, 10), smoothstep(3.7, 0, 10))).toBe(true);
+      expect(Object.is(tanhNormalized(41.9, 0.08, 30), tanhNormalized(41.9, 0.08, 30))).toBe(true);
+    });
+  });
 });
 

@@ -63,11 +63,13 @@ npx tsc --noEmit
 **Purpose**: Provide pure, deterministic mathematical functions for AFI Protocol. **Not** for business logic, orchestration, or I/O operations.
 
 **Key directories**:
+- `src/emissions/` — Canonical emissions schedule (three-phase front-loaded model, epoch budgets, cumulative/remaining supply)
 - `src/timeValue/` — Time value of money functions (PV, FV, implied rates, terminal value)
 - `src/curves/` — Curve primitives (logistic, exponential, power law, smoothstep, interpolation)
 - `src/valuation/` — Valuation models (reverse DCF, implied discount rates)
 - `src/decay/` — Decay models (exponential decay, power decay, half-life, greeks-adjusted decay)
-- `tests/` — Comprehensive unit tests and property-based tests
+- `tests/` — Comprehensive unit tests and deterministic golden vectors (`tests/goldens/`)
+- `scripts/` — Dev-only tooling (golden-vector generator, stdout-only)
 - `docs/` — Mathematical documentation and formulas
 
 **Consumed by**: afi-reactor (signal decay), afi-core (scoring), afi-mint (threshold calculations), afi-token (emissions curves)  

@@ -231,5 +231,91 @@ describe('Decay Models', () => {
       expect(() => greeksAdjustedHalfLife({ baseHalfLife: 0, thetaPerDay: 0.1 })).toThrow('Invalid: baseHalfLife must be positive');
     });
   });
+
+  // --- Hardening invariants (deterministic parameter grids) ---
+  // Grid-based rather than randomized so the suite stays fully deterministic
+  // with zero new dependencies. Adopting fast-check property tests is a
+  // recorded follow-up.
+  describe('invariants (deterministic grids)', () => {
+    const halfLives = [0.1, 1, 5, 14, 365];
+    const elapsedTimes = [0, 0.5, 1, 3, 10, 100];
+
+    it('exponentialDecay should equal initialValue * remainingAfterHalfLives(elapsed/halfLife)', () => {
+      for (const halfLife of halfLives) {
+        for (const elapsed of elapsedTimes) {
+          const direct = exponentialDecay({ initialValue: 250, halfLife, elapsed });
+          const viaHalfLives = 250 * remainingAfterHalfLives({ halfLives: elapsed / halfLife });
+          const relErr = Math.abs(direct - viaHalfLives) / Math.max(Math.abs(viaHalfLives), Number.MIN_VALUE);
+          expect(relErr).toBeLessThanOrEqual(1e-12);
+        }
+      }
+    });
+
+    it('exponentialDecay should be strictly decreasing in elapsed time', () => {
+      for (const halfLife of halfLives) {
+        let prev = Number.POSITIVE_INFINITY;
+        for (const elapsed of elapsedTimes) {
+          const v = exponentialDecay({ initialValue: 100, halfLife, elapsed });
+          expect(v).toBeLessThan(prev);
+          expect(v).toBeGreaterThan(0);
+          prev = v;
+        }
+      }
+    });
+
+    it('powerDecay should be strictly decreasing in elapsed time for positive power', () => {
+      for (const timeScale of [1, 10, 50]) {
+        for (const power of [0.5, 1, 2]) {
+          let prev = Number.POSITIVE_INFINITY;
+          for (const elapsed of elapsedTimes) {
+            const v = powerDecay({ initialValue: 100, timeScale, power, elapsed });
+            expect(v).toBeLessThan(prev);
+            expect(v).toBeGreaterThan(0);
+            prev = v;
+          }
+        }
+      }
+    });
+
+    it('lambdaFromHalfLife and halfLifeFromLambda should round-trip across a grid', () => {
+      for (const halfLife of halfLives) {
+        const lambda = lambdaFromHalfLife({ halfLife });
+        const recovered = halfLifeFromLambda({ lambda });
+        expect(Math.abs(recovered - halfLife) / halfLife).toBeLessThanOrEqual(1e-12);
+      }
+    });
+
+    it('should be deterministic: repeated calls return bit-identical results', () => {
+      const a = exponentialDecay({ initialValue: 123.456, halfLife: 7.5, elapsed: 3.25 });
+      const b = exponentialDecay({ initialValue: 123.456, halfLife: 7.5, elapsed: 3.25 });
+      expect(Object.is(a, b)).toBe(true);
+
+      const c = greeksAdjustedHalfLife({ baseHalfLife: 10, thetaPerDay: -0.37 });
+      const d = greeksAdjustedHalfLife({ baseHalfLife: 10, thetaPerDay: -0.37 });
+      expect(Object.is(c, d)).toBe(true);
+    });
+
+    it('compositeDecayScore should be order-invariant up to float rounding', () => {
+      const signals = [
+        { score: 100, halfLife: 10, age: 0 },
+        { score: 80, halfLife: 5, age: 3 },
+        { score: 120, halfLife: 20, age: 15 }
+      ];
+      const forward = compositeDecayScore(signals);
+      const reversed = compositeDecayScore([...signals].reverse());
+      const relErr = Math.abs(forward - reversed) / Math.abs(forward);
+      expect(relErr).toBeLessThanOrEqual(1e-12);
+    });
+
+    it('compositeDecayScore of identical signals should equal the single decayed score', () => {
+      const one = timeWeightedScore({ baseScore: 90, halfLife: 12, age: 6 });
+      const composite = compositeDecayScore([
+        { score: 90, halfLife: 12, age: 6 },
+        { score: 90, halfLife: 12, age: 6 },
+        { score: 90, halfLife: 12, age: 6 }
+      ]);
+      expect(Math.abs(composite - one) / one).toBeLessThanOrEqual(1e-12);
+    });
+  });
 });
 

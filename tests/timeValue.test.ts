@@ -225,5 +225,79 @@ describe('Time Value Functions', () => {
       expect(finalPV).toBeCloseTo(initialPV, 6);
     });
   });
+
+  // --- Hardening invariants (deterministic parameter grids) ---
+  // Grid-based rather than randomized so the suite stays fully deterministic
+  // with zero new dependencies. Adopting fast-check property tests is a
+  // recorded follow-up.
+  describe('invariants (deterministic grids)', () => {
+    const rates = [-0.5, -0.05, 0, 0.03, 0.10, 0.25, 1.0];
+    const periodsGrid = [0, 1, 2.5, 10, 30];
+
+    it('presentValue and futureValue should be exact inverses across the grid', () => {
+      const pv0 = 1234.56;
+      for (const rate of rates) {
+        for (const periods of periodsGrid) {
+          const fv = futureValue({ presentValue: pv0, rate, periods });
+          const back = presentValue({ futureValue: fv, rate, periods });
+          expect(Math.abs(back - pv0) / pv0).toBeLessThanOrEqual(1e-12);
+        }
+      }
+    });
+
+    it('impliedRate should round-trip through futureValue across the grid', () => {
+      for (const fv of [1001, 1500, 2000, 10000]) {
+        for (const periods of [1, 2.5, 10, 30]) {
+          const rate = impliedRate({ presentValue: 1000, futureValue: fv, periods });
+          expect(rate).not.toBeNull();
+          const check = futureValue({ presentValue: 1000, rate: rate!, periods });
+          expect(Math.abs(check - fv) / fv).toBeLessThanOrEqual(1e-9);
+        }
+      }
+    });
+
+    it('continuous compounding should match discrete compounding at the effective rate e^r - 1', () => {
+      for (const rate of [0.01, 0.05, 0.10, 0.25]) {
+        const time = 7;
+        const continuous = futureValueContinuous({ presentValue: 1000, rate, time });
+        const discrete = futureValue({
+          presentValue: 1000,
+          rate: Math.exp(rate) - 1,
+          periods: time
+        });
+        expect(Math.abs(continuous - discrete) / continuous).toBeLessThanOrEqual(1e-12);
+      }
+    });
+
+    it('futureValue should be strictly increasing in rate for positive periods', () => {
+      let prev = 0;
+      for (const rate of [-0.5, -0.05, 0, 0.03, 0.10, 0.25, 1.0]) {
+        const fv = futureValue({ presentValue: 1000, rate, periods: 10 });
+        expect(fv).toBeGreaterThan(prev);
+        prev = fv;
+      }
+    });
+
+    it('tvMultiple should be strictly decreasing in the WACC-g spread', () => {
+      let prev = Number.POSITIVE_INFINITY;
+      for (const spread of [0.01, 0.02, 0.05, 0.10, 0.20]) {
+        const m = tvMultiple(0.03 + spread, 0.03);
+        expect(m).toBeLessThan(prev);
+        expect(m).toBeGreaterThan(0);
+        prev = m;
+      }
+    });
+
+    it('should be deterministic: repeated calls return bit-identical results', () => {
+      const a = presentValue({ futureValue: 987.65, rate: 0.0725, periods: 12.5 });
+      const b = presentValue({ futureValue: 987.65, rate: 0.0725, periods: 12.5 });
+      expect(Object.is(a, b)).toBe(true);
+
+      const c = impliedRate({ presentValue: 1000, futureValue: 1777, periods: 9 });
+      const d = impliedRate({ presentValue: 1000, futureValue: 1777, periods: 9 });
+      expect(c).not.toBeNull();
+      expect(Object.is(c, d)).toBe(true);
+    });
+  });
 });
 

@@ -1,15 +1,17 @@
 {
   "name": "afi-math",
   "role": "math-library",
-  "description": "Shared financial math primitives for AFI Protocol (time value, curves, valuation, decay).",
+  "description": "Canonical executable off-chain math kernel package for AFI Protocol (emissions schedule, time value, curves, valuation, signal decay). Sole source of truth for promoted deterministic protocol formulas, per afi-governance decision math-authority-v0.1.",
   "entrypoints": [
     "src/index.ts",
+    "src/emissions/emissionsSchedule.ts",
     "src/timeValue/timeValue.ts",
     "src/curves/curves.ts",
     "src/valuation/reverseDcf.ts",
     "src/decay/decayModels.ts"
   ],
   "provides": [
+    "emissions-schedule",
     "time-value-functions",
     "curve-primitives",
     "reverse-dcf",
@@ -19,18 +21,26 @@
     "greeks-adjusted-decay"
   ],
   "consumers": [
-    "afi-engine",
-    "afi-token-finalized",
-    "afi-config",
-    "afi-plugins",
+    "afi-core",
     "afi-reactor",
-    "afi-core"
+    "afi-mint",
+    "afi-token"
   ],
-  "version": "0.1.0",
+  "consumerNotes": {
+    "afi-core": "Direct SDK/wrapper consumer; pins afi-math by commit and should delegate pure math here rather than redefining kernels.",
+    "afi-reactor": "Consumes math transitively through afi-core surfaces; reference runtime, not a math authority; no direct afi-math import today.",
+    "afi-mint": "Intended consumer: should consume the canonical emissions schedule from afi-math instead of duplicating it (de-inlining tracked as follow-up PR-3 in afi-governance decisions/math-authority-v0.1.md).",
+    "afi-token": "Does not import afi-math; mirrors constants (e.g. supply cap) on-chain and requires governance/test-vector traceability to afi-math golden vectors.",
+    "afi-econ": "Not a consumer: research/simulation/reference modeling; formulas become executable canon only via governed promotion into afi-math."
+  },
+  "version": "0.2.0",
   "status": "phase-1-ready",
   "dependencies": {
     "external": [],
     "internal": []
+  },
+  "goldenVectors": {
+    "emissions": "tests/goldens/emissions.golden.json"
   },
   "exports": {
     "timeValue": {
@@ -77,7 +87,23 @@
         "compositeDecayScore",
         "greeksAdjustedHalfLife"
       ]
+    },
+    "emissions": {
+      "functions": [
+        "shapeWeights",
+        "buildEmissionsSchedule",
+        "getEpochEmission",
+        "getCumulativeEmissions",
+        "getRemainingSupply",
+        "getEmittedFraction"
+      ],
+      "constants": [
+        "DEFAULT_EMISSIONS_PARAMS"
+      ],
+      "types": [
+        "EmissionsParams",
+        "EmissionsSchedule"
+      ]
     }
   }
 }
-
