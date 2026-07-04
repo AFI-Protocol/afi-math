@@ -2,13 +2,13 @@
 
 ## Purpose
 
-**afi-math** is the shared, audited mathematical backbone for AFI Protocol. It provides pure, deterministic functions for financial calculations, signal scoring, and time-based decay models used across the AFI ecosystem.
+**afi-math** is the **canonical executable off-chain math kernel package** for AFI Protocol (per `afi-governance` decision `math-authority-v0.1`). It provides pure, deterministic functions for the emissions schedule, financial calculations, signal scoring, and time-based decay models used across the AFI ecosystem.
 
 This library is:
 - **Math-only**: No I/O, database, network, or blockchain operations
 - **Pure**: All functions are deterministic with no side effects
-- **Shared**: Used by afi-engine, afi-token, afi-reactor, afi-plugins, and afi-core
-- **Auditable**: Simple, well-tested mathematical primitives
+- **Canonical**: Sole source of truth for promoted deterministic off-chain protocol formulas; consumers import, wrap, derive from, or test against these kernels rather than redefining them
+- **Auditable**: Simple, well-tested mathematical primitives with deterministic golden vectors
 
 ## Architecture
 
@@ -16,19 +16,43 @@ This library is:
 
 AFI Protocol maintains a clear separation between:
 
-1. **afi-math** (this repo): Pure mathematical functions
-2. **afi-config**: JSON Schemas and configuration templates
-3. **afi-engine**: Signal processing and scoring logic
-4. **afi-reactor**: Pipeline orchestration and DAG execution
-5. **afi-token**: Smart contracts and on-chain tokenomics
+1. **afi-math** (this repo): Pure mathematical kernels — canonical executable off-chain math
+2. **afi-config**: Schemas, version pins, profile registries, mappings, and KAT references
+3. **afi-core**: SDK/wrapper surfaces, validators, and scoring contracts that delegate pure math here
+4. **afi-reactor**: Reference runtime / pipeline orchestration — not a math authority
+5. **afi-mint**: Mint/reward policy execution, consuming canonical math
+6. **afi-token**: Smart contracts and on-chain constraints with mirrored, traceable constants
+7. **afi-econ**: Economic research/simulation/reference modeling until governed promotion
 
 This separation ensures that:
 - Math functions can be audited independently
 - Changes to schemas don't affect mathematical correctness
-- Engine behavior can evolve without changing core math
-- Math can be reused across different contexts (on-chain, off-chain, testing)
+- Runtime behavior can evolve without changing core math
+- Math can be reused across different contexts (off-chain, simulation, testing)
 
 ## Module Breakdown
+
+### 0. Emissions (`src/emissions/emissionsSchedule.ts`)
+
+**Purpose**: Canonical three-phase front-loaded emissions schedule (86B over ~53 years), derived from `AFI_Emissions_Final.wl` (Wolfram Mathematica).
+
+**Key Functions**:
+
+- `buildEmissionsSchedule(params?)`: Build the complete schedule from (partial) `EmissionsParams`
+  - Defaults (`DEFAULT_EMISSIONS_PARAMS`): 86B cap, 52 epochs/year, phases of 4 / 24 / 25 years reaching 33⅓% / 80% / 100% of supply, shape factors 2.0 / 1.5 / 1.2
+  - Per-phase front-loaded weights via `shapeWeights` (`w[i] ∝ e^(-shape·i/(n-1))`, normalized to sum 1)
+  - Emissions decrease strictly within each phase, with intended upward steps at the two phase boundaries (each phase is front-loaded independently)
+
+- `getEpochEmission(schedule, epoch)`: Per-epoch budget (1-indexed; 0 outside the schedule)
+- `getCumulativeEmissions(schedule, epoch)`: Cumulative emissions (exactly the cap at/after the final epoch)
+- `getRemainingSupply(schedule, alreadyMinted)`: Remaining mintable supply, clamped at 0
+- `getEmittedFraction(schedule, epoch)`: Fraction of the cap emitted by an epoch
+
+**Determinism & precision**: Pure float64; construction is bit-identical across repeated runs on the same engine. Because IEEE-754 does not mandate bit-identical transcendentals (`Math.exp`) across engines, canonical outputs are pinned by golden vectors (`tests/goldens/emissions.golden.json`) with exact integer assertions and relative tolerance `1e-12` for floats.
+
+**AFI Use Cases**:
+- Canonical epoch emissions budgets for tokenomics
+- Reference vectors for downstream consumers that mirror or apply the schedule
 
 ### 1. Time Value (`src/timeValue/timeValue.ts`)
 
@@ -164,28 +188,30 @@ This separation ensures that:
 
 ### How Other Repos Use afi-math
 
-**afi-engine**:
-- Uses `decay` module for signal freshness scoring
-- Uses `curves` module for confidence transformations
-- Uses `valuation` module for fundamental analysis validation
+Consumption modes follow the authority model in `afi-governance` `decisions/math-authority-v0.1.md` — not every repo imports `afi-math` directly:
 
-**afi-token-finalized**:
-- Uses `timeValue` module for emissions discounting
-- Uses `decay` module for PoI half-life calculations
-- Uses `curves` module for non-linear reward curves
+**afi-core** (direct SDK/wrapper consumer):
+- Pins `afi-math` by commit and wraps kernels behind SDK surfaces
+- Uses `decay`, `curves`, `timeValue`, and `emissions` lineage for scoring and derived figures
+- Must not independently redefine canonical formulas that belong here
 
-**afi-reactor**:
-- Uses `curves` module for pipeline scoring transformations
-- Uses `decay` module for time-weighted signal aggregation
+**afi-reactor** (transitive consumer):
+- Reference runtime; consumes math transitively through `afi-core` surfaces (no direct `afi-math` import today)
+- Not a math authority; strategy/indicator math inside the reactor is implementation/profile math unless separately promoted
 
-**afi-plugins**:
-- Uses `valuation` module for equity/strategy signal generation
-- Uses `timeValue` module for DCF-based signals
-- Uses `decay` module for signal metadata enrichment
+**afi-mint** (intended consumer):
+- Should consume the canonical emissions schedule from `afi-math` instead of duplicating it; de-inlining its current inline copy is tracked follow-up work (PR-3 in the authority-model decision record)
+
+**afi-token** (traceability, not import):
+- Does not import `afi-math`; mirrors constants (e.g. the supply cap) on-chain
+- Mirrored values require governance/test-vector traceability to `afi-math` golden vectors
 
 **afi-config**:
-- References afi-math functions in schema documentation
+- Owns schemas, version pins, profile registries, mappings, and KAT references
 - Provides USS schemas that align with afi-math decay models
+
+**afi-econ**:
+- Research/simulation/reference modeling; formulas become executable canon only via governed promotion into `afi-math`
 
 ### USS Integration
 
@@ -217,16 +243,22 @@ AFI Universal Signal Schema (USS) defines telemetry fields that map directly to 
 
 All modules have comprehensive test coverage:
 
-- **timeValue.test.ts**: PV/FV round-trips, edge cases (zero rate, zero periods), implied rate accuracy
-- **curves.test.ts**: Logistic midpoint, monotonicity, range bounds, inverse functions
-- **valuation.test.ts**: Reverse DCF against spreadsheet values, implied rate solving, edge cases
-- **decay.test.ts**: Half-life verification, composite scoring, greeks adjustment
+- **emissions.test.ts**: Golden-vector conformance, cap behavior, milestone epochs, per-phase monotonicity and intended phase-boundary discontinuities, boundary epochs, determinism, invalid-input characterization
+- **exports.test.ts**: Locks the public barrel export surface exactly (fails on accidental removals and additions)
+- **timeValue.test.ts**: PV/FV round-trips, edge cases (zero rate, zero periods), implied rate accuracy, grid invariants
+- **curves.test.ts**: Logistic midpoint, monotonicity, range bounds, inverse functions, grid invariants
+- **valuation.test.ts**: Reverse DCF against spreadsheet values, implied rate solving, edge cases, grid invariants
+- **decay.test.ts**: Half-life verification, composite scoring, greeks adjustment, grid invariants
+
+Golden vectors (`tests/goldens/emissions.golden.json`) pin canonical emissions outputs deterministically: integer values are asserted exactly; float values at relative tolerance `1e-12` (IEEE-754 does not guarantee bit-identical transcendentals across JS engines).
 
 Tests verify:
 - Mathematical correctness (formulas match specifications)
 - Numerical stability (no NaN, Infinity, or precision issues)
 - Edge case handling (zero, negative, boundary values)
 - Round-trip consistency (PV → FV → PV, logistic → inverse → logistic)
+- Determinism (repeated calls produce bit-identical results)
+- Canonical behavior pinning (golden vectors; any diff requires explicit review)
 
 ## Future Extensions (Phase 2+)
 
