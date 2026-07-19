@@ -140,7 +140,7 @@ npx tsc --noEmit
 
 ## Interaction with Other AFI Repos
 
-**afi-reactor** (DAG orchestrator):
+**afi-reactor** (pipeline orchestrator):
 - `afi-reactor` **consumes** decay functions from `afi-math`
 - `afi-math` **MUST NOT** depend on `afi-reactor` (avoid circular coupling)
 - Dependency direction: `afi-reactor` → `afi-math` (never reverse)
